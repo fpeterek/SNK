@@ -1,0 +1,9 @@
+.DS_Store/
+.idea/
+.py[co]
+venv/
+.venv/
+*.bat
+.gradle
+build/
+
