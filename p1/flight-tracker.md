@@ -110,11 +110,13 @@ určenou k tvorbě UI/webových stránek.
 
 ## Key Issues in Software Design
 
+```
     .--.  
-   |o\_o |  
-   |:\_/ |  
+   |o_o |  
+   |:_/ |  
   //   \ \  
  (|     | )  
-/'\\\_   \_/\`\\  
-\\\_\_\_)=(\_\_\_/  
+/'\_   _/`\  
+\___)=(___/  
+```
 
