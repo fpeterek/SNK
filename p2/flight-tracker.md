@@ -99,3 +99,13 @@ Mezi přijímači ovšem nechceme komunikovat. Na přijímačích není důvod i
 logiku - naopak by to bylo na škodu, navíc přijatá data stejně potřebujeme validovat. Proto
 pro model Peer to Peer nevidím využití.
 
+```
+    .--.  
+   |o_o |  
+   |:_/ |  
+  //   \ \  
+ (|     | )  
+/'\_   _/`\  
+\___)=(___/  
+```
+
