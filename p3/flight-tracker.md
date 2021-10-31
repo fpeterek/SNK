@@ -47,7 +47,8 @@ Package `kafka` abstrahuje komunikaci s Kafkou. Díky této abstrakci by se nap�
 interně mohla knihovna `KafkaStreams` zaměnit za `Flink` a nikdo by si nevšiml. 
 
 Package `json` obsahuje logiku sloužící k parsování JSON zpráv zasílaných Kafkou. Package
-`kafka` však na package `json` nezávisí. 
+`kafka` však na package `json` nezávisí (ani naopak, `kafka` se nezajímá o obsah zpráv,
+`json` se nezajímá o logiku streamování). 
 
 Package `util` poté obsahuje třídu `ConfigLoader` a record `GeoPoint`. `GeoPoint` slouží
 k ukládání lat/lon párů, `ConfigLoader` poté k načítání konfigurace z env proměnných. 
@@ -65,11 +66,11 @@ Jako další příklad špatné modularity lze uvést například metodu
 (`writeHealthcheck()`)[https://github.com/fpeterek/FlightLidar48/blob/126880dfb5d4ea768c05ca39b8bc9bea21238c91/database/database/src/main/java/org/fpeterek/flightlidar48/kafka/MessageWriter.java#L44]
 třídy `MessageWriter`. Třída `MessageWriter` slouží k zápisu zpráv do message brokera.
 Ke čtení zpráv poté slouží třída `MessageStream`. Problém s metodou `writeHealhcheck()`
-spočívá v tom, že zapisuje 'natvrdo' zadefinovanou zprávu ve formátu. `MessageWriter`
-si tak metodou `writeHealthcheck()` zbytečně vynucuje způsob zpracování healthchecku.
-Samozřejmě lze ke zpracování healthchecku využít také metodu `write`, které lze dodat
-vlastní zprávu. Metoda `writeHealthcheck()` tak sice nezpůsobuje příliš velké problémy
-a není ji třeba použít, programátorovi neznalému vnitřnímu fungování dané třídy
+spočívá v tom, že zapisuje 'natvrdo' zadefinovanou zprávu ve formátu JSON.
+`MessageWriter` si tak metodou `writeHealthcheck()` zbytečně vynucuje způsob zpracování
+healthchecku. Samozřejmě lze ke zpracování healthchecku využít také metodu `write`, které
+lze dodat vlastní zprávu. Metoda `writeHealthcheck()` tak sice nezpůsobuje příliš velké
+problémy a není ji třeba použít, programátorovi neznalému vnitřnímu fungování dané třídy
 ovšem může evokovat nutnost využití dané metody. Veškeré problémy tak zde způsobuje
 nešťastně navržený interface.
 
@@ -101,9 +102,10 @@ public void write(String data) {
 
 Dále by se dalo třídě 
 (`ReceiverDatabase`)[https://github.com/fpeterek/FlightLidar48/blob/master/validator/src/main/java/org/fpeterek/flightlidar48/validator/ReceiverDatabase.java]
-vytknout, že slouží pouze jako wrapper nad HashMapou, a tak může být generická, nebo tříde
+vytknout, že slouží pouze jako thread-safe wrapper nad HashMapou, a tak může být
+generická, nebo třídě
 (`MailClient`)[https://github.com/fpeterek/FlightLidar48/blob/master/validator/src/main/java/org/fpeterek/flightlidar48/validator/MailClient.java],
-že posílá předdefinovaný email, což znemožňuje znovupoužití kódu.
+že posílá předdefinovaný email. Obojí zbytečně znemožňuje znovupoužití kódu.
 
 ## Soudržnost
 
@@ -141,7 +143,7 @@ nezávislé.
 
 Projekt obsahuje také REST API a dva různé klienty - webového klienta využívajícího API
 Mapy.cz a desktop klienta. REST API také snižuje provázanost komponent. Klienti jsou
-nezávislí na sobě, ale také na pozadí API. Pouze posílají HTTP requesty, ve kterých si
+nezávislí na sobě, ale také na backendu API. Pouze posílají HTTP requesty, ve kterých si
 vyžádají data, v odpovědi dostávají JSON, který poté zpracovávají vlastním způsobem
 (například vykreslením do map Mapy.cz nebo Swing okna).
 
@@ -158,15 +160,16 @@ zůstat nedotčen.
 ## Použití rozhraní
 
 Bavíme-li se o rozhraních na úrovni jednotlivých komponent, lze znovu uvést jako příklad
-komunikaci skrze message brokera (v tomto případě Kafku) nebo REST API. Komunikace
+komunikaci skrze message brokera (v tomto případě Apache Kafku) nebo REST API. Komunikace
 za využití Kafky je definována formátem zprávy. (Simulované) přijímače zapíšou data,
 ta jsou zvalidována a následně zapsána. Každá komponenta má pevně definovaný formát
 zprávy, kterou na svém vstupu přijímá. Podobně má REST API přesně definované endpointy.
 Pokud bychom chtěli jednu z komponent přepsat, musíme toto rozhraní zachovat, abychom
 mohli novou komponentu zapojit do systému.
 
-Jako příklad použití rozhraní v rámci jedné komponenty poté lze zmínit například
-interface `MessageHandler` využívaný třídou `MessageStream`.
+Jako příklad použití rozhraní v rámci jedné komponenty (tedy jednotka=třída,
+ne komponenta) poté lze zmínit například interface `MessageHandler` využívaný třídou
+`MessageStream`.
 
 ```java
 public interface MessageHandler {
@@ -243,8 +246,8 @@ public record Airline(
 ```
 
 Java recordy mají všechny atributy implicitně konstantní (final). Problém s final
-objekty je ovšem ten, že jako final je označen pouze pointer na daný objekt, ne objekt
-samotný. Například v případě Listu fleet to znamená, že by kdokoliv mohl přidat letadlo
+atributy je ovšem ten, že jako final je označen pouze pointer na daný objekt, ne objekt
+samotný. Například v případě Listu `fleet` to znamená, že by kdokoliv mohl přidat letadlo
 do flotily metodou `List::add`, aniž by letadlo bylo validováno (viz metoda
 `addToFleet()`). Z hlediska zapouzdření zde existují dvě možnosti. První možnost je
 nevracet pointer na list držený recordem, ale celý list zkopírovat, což je ovšem
@@ -254,8 +257,9 @@ kolekcí na mutable a immutable rozhraní. Mutable kolekci poté lze předat pom
 immutable rozhraní, což nám umožní zabránit kopírování kolekce i nechtěné mutaci. Naopak
 to ovšem nejde -> pokud bychom immutable kolekci chtěli převést na mutable kolekci,
 museli bychom ji zkopírovat. Bohužel, projekt byl psaný v Javě a ne v Kotlinu, což
-neumožnilo jednoduše využít druhé, efektivní, řešení (na implementaci vlastního wrapperu
-nad Listem nebyl čas).
+neumožnilo jednoduše využít druhé, efektivní, řešení (ovšem pravděpodobně bude existovat
+open source řešení, které by pro danou aplikaci bylo využitelné, což však v době psaní
+projektu nebyla priorita).
 
 ## Zákon Demeter
 
